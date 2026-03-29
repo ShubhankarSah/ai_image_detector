@@ -6,6 +6,11 @@ from contextlib import asynccontextmanager
 app = FastAPI(title="V2 AI Image Forensics API - Diagnostic Mode")
 
 @app.get("/api/health")
+def handler(request):
+    return {
+        "statusCode": 200,
+        "body": "Working!"
+    }
 def health_check():
     return {
         "status": "ok",
