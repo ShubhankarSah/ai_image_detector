@@ -82,10 +82,17 @@ async def analyze_image(file: UploadFile = File(...)):
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_index():
-    # Vercel's index.html is in the root of the project
-    path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "index.html")
-    with open(path, "r") as f:
-        return f.read()
+    # Try multiple paths to find index.html in Vercel's environment
+    possible_paths = [
+        os.path.join(os.getcwd(), "index.html"),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "index.html"),
+        "/var/task/index.html"
+    ]
+    for path in possible_paths:
+        if os.path.exists(path):
+            with open(path, "r") as f:
+                return f.read()
+    raise HTTPException(status_code=404, detail=f"index.html not found. Checked: {possible_paths}")
 
 @app.get("/health")
 def health_check():
