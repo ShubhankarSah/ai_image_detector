@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V2 AI Image Forensics | Deepfake Detection</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: radial-gradient(circle at top right, #1e1b4b, #020617);
+            min-height: 100vh;
+            color: #f8fafc;
+        }
+        .glass {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .glow {
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
+        }
+        .loader {
+            border-top-color: #6366f1;
+            animation: spinner 0.6s linear infinite;
+        }
+        @keyframes spinner {
+            to {transform: rotate(360deg);}
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-4xl mx-auto">
+        <!-- Header -->
+        <header class="text-center mb-12">
+            <h1 class="text-5xl font-extrabold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-400">
+                AI Image Forensics V2
+            </h1>
+            <p class="text-indigo-200/60 text-lg">Multi-Signal Neural Deepfake Analysis</p>
+        </header>
+
+        <!-- Main Upload Card -->
+        <div class="glass glow rounded-3xl p-8 mb-8">
+            <div id="dropzone" class="border-2 border-dashed border-indigo-500/30 rounded-2xl p-12 text-center hover:border-indigo-400 transition-all cursor-pointer group">
+                <input type="file" id="fileInput" class="hidden" accept="image/*">
+                <div class="text-6xl mb-4 group-hover:scale-110 transition-transform">🔬</div>
+                <p class="text-xl font-medium mb-2">Drop your image here</p>
+                <p class="text-indigo-400 font-semibold mb-4 underline">or click to browse</p>
+                <p class="text-xs text-indigo-200/40 uppercase tracking-widest">Supports JPG, PNG, WEBP (Max 10MB)</p>
+            </div>
+        </div>
+
+        <!-- Result Section (Hidden) -->
+        <div id="results" class="hidden space-y-6">
+            <div class="flex items-center justify-between mb-2">
+                <h2 class="text-2xl font-bold">Analysis Verdict</h2>
+                <div id="verdictBadge" class="px-6 py-2 rounded-full font-bold uppercase tracking-wider text-sm glow"></div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Main Stats -->
+                <div class="glass rounded-2xl p-6 col-span-1 md:col-span-2">
+                    <p class="text-indigo-200/60 text-sm uppercase tracking-widest mb-4">Evidence Breakdown</p>
+                    <div id="explanation" class="text-lg leading-relaxed text-indigo-50"></div>
+                </div>
+                
+                <div class="glass rounded-2xl p-6">
+                    <p class="text-indigo-200/60 text-sm uppercase tracking-widest mb-4">Confidence</p>
+                    <div id="confidenceVal" class="text-6xl font-black text-indigo-400 mb-2">0%</div>
+                    <div id="strengthLabel" class="text-sm font-bold uppercase py-1 px-3 rounded-md bg-indigo-500/20 text-indigo-300 inline-block"></div>
+                </div>
+            </div>
+
+            <!-- Detailed Signal Plot -->
+            <div class="glass rounded-2xl p-6">
+                <p class="text-indigo-200/60 text-sm uppercase tracking-widest mb-6 border-b border-white/5 pb-2">Forensic Signal Audit</p>
+                <div id="signalContainer" class="space-y-4">
+                    <!-- Signals injected here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading View -->
+        <div id="loading" class="hidden text-center py-20">
+            <div class="w-16 h-16 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full loader mx-auto mb-6"></div>
+            <p class="text-xl text-indigo-300 font-medium italic animate-pulse">Running Neural Reconstruction & FFT Analysis...</p>
+        </div>
+    </div>
+
+    <script>
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const results = document.getElementById('results');
+        const loading = document.getElementById('loading');
+
+        dropzone.addEventListener('click', () => fileInput.click());
+        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('bg-indigo-500/10'); });
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('bg-indigo-500/10'));
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('bg-indigo-500/10');
+            if (e.dataTransfer.files.length) handleUpload(e.dataTransfer.files[0]);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) handleUpload(e.target.files[0]);
+        });
+
+        async function handleUpload(file) {
+            results.classList.add('hidden');
+            loading.classList.remove('hidden');
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/api/v2/analyze', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                showResults(data);
+            } catch (error) {
+                alert('Analysis failed. Check backend logs.');
+                console.error(error);
+            } finally {
+                loading.classList.add('hidden');
+            }
+        }
+
+        function showResults(data) {
+            results.classList.remove('hidden');
+            
+            // Verdict UI
+            const badge = document.getElementById('verdictBadge');
+            badge.innerText = data.verdict;
+            if (data.verdict.includes('Real')) {
+                badge.className = 'px-6 py-2 rounded-full font-bold uppercase tracking-wider text-sm glow bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+            } else if (data.verdict.includes('AI')) {
+                badge.className = 'px-6 py-2 rounded-full font-bold uppercase tracking-wider text-sm glow bg-rose-500/20 text-rose-400 border border-rose-500/30';
+            } else {
+                badge.className = 'px-6 py-2 rounded-full font-bold uppercase tracking-wider text-sm glow bg-amber-500/20 text-amber-400 border border-amber-500/30';
+            }
+
+            document.getElementById('confidenceVal').innerText = `${Math.round(data.confidence || 0)}%`;
+            document.getElementById('strengthLabel').innerText = data.strength_of_evidence || 'Moderate';
+            document.getElementById('explanation').innerText = data.final_explanation || '';
+
+            // Signals
+            const sc = document.getElementById('signalContainer');
+            sc.innerHTML = '';
+            
+            if (data.breakdown) {
+                Object.entries(data.breakdown).forEach(([key, val]) => {
+                    const cleanKey = key.replace('_confidence', '').replace('_', ' ');
+                    const valInt = Math.round(val || 0);
+                    
+                    const div = document.createElement('div');
+                    div.className = 'flex items-center gap-4';
+                    div.innerHTML = `
+                        <div class="w-32 text-xs uppercase text-indigo-200/40 font-bold">${cleanKey}</div>
+                        <div class="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
+                            <div class="h-full bg-gradient-to-r from-indigo-500 to-cyan-500" style="width: ${valInt}%"></div>
+                        </div>
+                        <div class="text-xs font-mono text-indigo-400 w-12 text-right">${valInt}%</div>
+                    `;
+                    sc.appendChild(div);
+                });
+            }
+            
+            // Scroll to results
+            results.scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>
