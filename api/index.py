@@ -1,83 +1,57 @@
 import os
 import sys
-import shutil
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from contextlib import asynccontextmanager
 
-# In Vercel, everything in the 'api' folder is available for relative import
-try:
-    from .src.extractors.texture import calculate_texture_anomaly
-    from .src.extractors.frequency import calculate_frequency_anomalies
-    from .src.extractors.reconstruction import calculate_reconstruction_similarity
-    from .src.extractors.metadata import calculate_metadata_authenticity
-    from .src.extractors.spatial import calculate_spatial_anomalies
-    from .src.llm.orchestrator import ForensicsOrchestrator
-except (ImportError, ValueError):
-    # Fallback for different Vercel execution contexts
-    try:
-        from src.extractors.texture import calculate_texture_anomaly
-        from src.extractors.frequency import calculate_frequency_anomalies
-        from src.extractors.reconstruction import calculate_reconstruction_similarity
-        from src.extractors.metadata import calculate_metadata_authenticity
-        from src.extractors.spatial import calculate_spatial_anomalies
-        from src.llm.orchestrator import ForensicsOrchestrator
-    except ImportError as e:
-        print(f"CRITICAL IMPORT ERROR: {e}")
-        # Mocks to allow app startup for log visibility
-        calculate_texture_anomaly = calculate_frequency_anomalies = calculate_reconstruction_similarity = calculate_metadata_authenticity = calculate_spatial_anomalies = lambda x: {}
-        class ForensicsOrchestrator: 
-            def generate_forensic_report(self,*args): return {"error": f"Import Failed: {e}"}
-
-from dotenv import load_dotenv
-load_dotenv()
-
-UPLOAD_DIR = "/tmp/uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    global orchestrator
-    orchestrator = ForensicsOrchestrator()
-    yield
-
-app = FastAPI(title="V2 AI Image Forensics API", lifespan=lifespan)
-
-@app.post("/api/analyze")
-async def analyze_image(file: UploadFile = File(...)):
-    if not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="File must be an image.")
-
-    file_path = os.path.join(UPLOAD_DIR, file.filename)
-    try:
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-            
-        cv_scores = {
-            **calculate_spatial_anomalies(file_path),
-            **calculate_texture_anomaly(file_path),
-            **calculate_frequency_anomalies(file_path),
-            **calculate_reconstruction_similarity(file_path),
-            **calculate_metadata_authenticity(file_path)
-        }
-        
-        return orchestrator.generate_forensic_report(file_path, cv_scores)
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        if os.path.exists(file_path):
-            os.remove(file_path)
+app = FastAPI(title="V2 AI Image Forensics API - Diagnostic Mode")
 
 @app.get("/api/health")
 def health_check():
-    return {"status":"ok", "system":"AI Image Forensics Segmenter", "cwd": os.getcwd()}
+    return {
+        "status": "ok",
+        "python_version": sys.version,
+        "cwd": os.getcwd(),
+        "files_in_api": os.listdir(os.path.join(os.getcwd(), "api")) if os.path.exists("api") else "None",
+        "files_in_root": os.listdir(os.getcwd())
+    }
 
 @app.get("/api/test-imports")
 def test_imports():
+    results = {}
+    
+    # Core Libraries
+    try:
+        import numpy
+        results["numpy"] = numpy.__version__
+    except Exception as e:
+        results["numpy"] = f"FAILED: {str(e)}"
+        
+    try:
+        import PIL
+        results["PIL"] = "Loaded"
+    except Exception as e:
+        results["PIL"] = f"FAILED: {str(e)}"
+
+    # Problematic CV2
     try:
         import cv2
-        import numpy
-        import PIL
-        return {"cv2": cv2.__version__, "numpy": numpy.__version__, "PIL": PIL.__version__}
+        results["cv2"] = cv2.__version__
     except Exception as e:
-        return {"error": str(e)}
+        results["cv2"] = f"FAILED: {str(e)}"
+
+    # Local Imports
+    try:
+        from .src.extractors.texture import calculate_texture_anomaly
+        results["local_texture"] = "Loaded"
+    except Exception as e:
+        results["local_texture"] = f"FAILED: {str(e)}"
+
+    return results
+
+@app.post("/api/analyze")
+async def analyze_image(file: UploadFile = File(...)):
+    return {
+        "verdict": "Diagnostic Mode Active",
+        "message": "AI engines are temporarily disabled for stability testing.",
+        "filename": file.filename
+    }
